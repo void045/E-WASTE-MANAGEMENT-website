@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Scrap Management | IndianOil</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="background-slider"></div>
+    
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <img src="/ioc_logo.svg" alt="IOC Logo" class="mini-logo">
+                <span>IOC Enterprise</span>
+            </div>
+            <div class="sidebar-ioc-banner">
+                <img src="/ioc_logo.svg" alt="IndianOil" class="sidebar-ioc-logo">
+                <p class="sidebar-ioc-text">Indian Oil Corporation<br><small>Scrap Management Portal</small></p>
+            </div>
+            <ul class="nav-links">
+                <li class="nav-item active" data-view="inventory"><a href="#"><i class="fas fa-boxes"></i> Inventory</a></li>
+                <li class="nav-item" data-view="history"><a href="#"><i class="fas fa-history"></i> History & Analytics</a></li>
+                <li class="nav-item" data-view="settings"><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+                <li style="border-top:1px solid rgba(255,255,255,0.08); margin:8px 0"></li>
+                <li><a href="/pickup-requests.html" style="display:flex;align-items:center;gap:8px;padding:10px 20px;color:#9ca3af;font-size:0.875rem"><i class="fas fa-truck"></i> Pickup Requests</a></li>
+                <li id="navCategories"><a href="/categories.html" style="display:flex;align-items:center;gap:8px;padding:10px 20px;color:#9ca3af;font-size:0.875rem"><i class="fas fa-tags"></i> Categories</a></li>
+                <li id="navTransactions"><a href="/transactions.html" style="display:flex;align-items:center;gap:8px;padding:10px 20px;color:#9ca3af;font-size:0.875rem"><i class="fas fa-rupee-sign"></i> Transactions</a></li>
+                <li id="navUsers"><a href="/users.html" style="display:flex;align-items:center;gap:8px;padding:10px 20px;color:#9ca3af;font-size:0.875rem"><i class="fas fa-users"></i> User Management</a></li>
+                <li class="logout"><a href="#" onclick="_iocLogout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="search-container">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search by name, ID, brand...">
+                </div>
+                
+                <div class="header-actions">
+                    <div class="branch-selector">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <select id="branchFilter">
+                            <option value="all">All Branches</option>
+                            <option value="Mumbai Refineries">Mumbai Refineries</option>
+                            <option value="Delhi HQ">Delhi HQ</option>
+                            <option value="Digboi Refinery">Digboi Refinery</option>
+                            <option value="Chennai Marketing">Chennai Marketing</option>
+                            <option value="Kolkata Office">Kolkata Office</option>
+                        </select>
+                    </div>
+
+                    <div class="export-dropdown">
+                        <button class="export-main-btn"><i class="fas fa-file-export"></i> Export</button>
+                        <div class="export-content">
+                            <button onclick="exportToPDF()"><i class="far fa-file-pdf"></i> Branded PDF</button>
+                            <button onclick="exportToCSV()"><i class="fas fa-file-csv"></i> Binary CSV</button>
+                        </div>
+                    </div>
+
+                    <div class="user-profile">
+                        <img src="https://ui-avatars.com/api/?name=Admin+IOC&background=002e6e&color=fff" alt="User" class="avatar" id="avatarImg">
+                        <div class="user-info">
+                            <span class="name" id="displayAdminName">Admin User</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Inventory View -->
+            <div id="inventory-view" class="view-section active">
+                <section class="dashboard-header">
+                    <div class="header-text">
+                        <h1>Scrap Infrastructure</h1>
+                        <p>Enterprise asset lifecycle and stock capacity control.</p>
+                    </div>
+                    <button class="add-btn" onclick="openModal('addModal')"><i class="fas fa-plus"></i> Register New Scrap</button>
+                </section>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-boxes"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Stock</h3>
+                            <p id="total-qty">0 Items</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-warehouse"></i></div>
+                        <div class="stat-details">
+                            <h3>Storage Health</h3>
+                            <p id="capacity-status">Healthy</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inventory-grid" id="inventory-grid">
+                    <!-- Cards injected here -->
+                </div>
+            </div>
+
+            <!-- History & Analytics View -->
+            <div id="history-view" class="view-section">
+                <section class="dashboard-header">
+                    <div class="header-text">
+                        <h1>Analytics & History</h1>
+                        <p>Comprehensive charts and activity stream for all branches.</p>
+                    </div>
+                </section>
+
+                <!-- Row 1: Category Pie + Weight Doughnut -->
+                <div class="charts-row">
+                    <div class="chart-container card">
+                        <h3><i class="fas fa-chart-pie"></i> Category Distribution</h3>
+                        <div class="canvas-wrapper"><canvas id="wasteChart"></canvas></div>
+                    </div>
+                    <div class="chart-container card">
+                        <h3><i class="fas fa-weight-hanging"></i> Weight Distribution (kg)</h3>
+                        <div class="canvas-wrapper"><canvas id="weightChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Stock by City bar chart -->
+                <div class="card" style="margin-top: 30px;">
+                    <h3><i class="fas fa-map-marker-alt"></i> Total Stock by Branch / City</h3>
+                    <div style="height: 320px;"><canvas id="cityChart"></canvas></div>
+                </div>
+
+                <!-- Row 3: Activity log -->
+                <div class="history-container card" style="margin-top: 30px;">
+                    <h3><i class="fas fa-list"></i> Activity Stream</h3>
+                    <div class="log-table-wrapper">
+                        <table class="log-table">
+                            <thead>
+                                <tr><th>Timestamp</th><th>Asset</th><th>Action</th><th>Change</th></tr>
+                            </thead>
+                            <tbody id="history-log-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view-section">
+                <section class="dashboard-header">
+                    <div class="header-text">
+                        <h1>System Settings</h1>
+                        <p>Manage your profile and system preferences.</p>
+                    </div>
+                </section>
+
+                <div class="settings-card card">
+                    <form id="settingsForm">
+                        <div class="settings-group">
+                            <h3>Profile Information</h3>
+                            <div class="input-row">
+                                <div class="field">
+                                    <label>Admin Display Name</label>
+                                    <input type="text" id="adminNameInput" value="Admin User">
+                                </div>
+                                <div class="field">
+                                    <label>Profile Image URL</label>
+                                    <input type="text" id="adminAvatarInput" placeholder="Enter image URL">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Security</h3>
+                            <div class="field">
+                                <label>New Password</label>
+                                <input type="password" id="newPassword" placeholder="Minimum 8 characters">
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Preferences</h3>
+                            <div class="toggle-field">
+                                <span>Enable Sound Notifications</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="soundToggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="save-settings-btn full-width">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    
+    <!-- Add Item Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content card">
+            <span class="close" onclick="closeModal('addModal')">&times;</span>
+            <h2>Register New Scrap Asset</h2>
+            <form id="addItemForm" class="grid-form">
+                <div class="field">
+                    <label>Unique ID</label>
+                    <input type="text" id="add-id" placeholder="ELW-XXX" required>
+                </div>
+                <div class="field">
+                    <label>Asset Name</label>
+                    <input type="text" id="add-name" placeholder="e.g. Cisco Switch" required>
+                </div>
+                <div class="field">
+                    <label>Category</label>
+                    <select id="add-type">
+                        <option>Laptop</option><option>PC</option><option>Mobile</option>
+                        <option>Printer</option><option>Network</option><option>Television</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Branch Location</label>
+                    <select id="add-branch">
+                        <option>Mumbai Refineries</option><option>Delhi HQ</option>
+                        <option>Digboi Refinery</option><option>Kolkata Office</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Initial Qty</label>
+                    <input type="number" id="add-qty" value="0" required>
+                </div>
+                <div class="field">
+                    <label>Max Storage Capacity</label>
+                    <input type="number" id="add-max" value="50" required>
+                </div>
+                <div class="field full-width">
+                    <label>Image URL</label>
+                    <input type="text" id="add-img" value="https://images.unsplash.com/photo-1555680202-c86f0e12f086?auto=format&fit=crop&q=80&w=400">
+                </div>
+                <button type="submit" class="save-settings-btn full-width">Initialize Asset</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Details/QR Modal -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content card qr-modal">
+            <span class="close" onclick="closeModal('detailsModal')">&times;</span>
+            <div id="qr-container"></div>
+            <div id="item-details-body">
+                <!-- Data injected here -->
+            </div>
+            <button class="delete-btn-main" onclick="deleteCurrentItem()"><i class="fas fa-trash"></i> Decommission Asset</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container"></div>
+
+    <!-- ===================== AI CHATBOT ===================== -->
+    <!-- Floating Button -->
+    <button class="ai-fab" id="aiFab" onclick="toggleChat()" title="IOC AI Assistant">
+        <i class="fas fa-robot"></i>
+        <span class="ai-fab-badge" id="aiBadge">1</span>
+    </button>
+
+    <!-- Chat Panel -->
+    <div class="ai-chat-panel" id="aiChatPanel">
+        <div class="ai-chat-header">
+            <div class="ai-header-info">
+                <div class="ai-avatar-ring">
+                    <img src="/ioc_logo.svg" alt="IOC AI">
+                </div>
+                <div>
+                    <strong>IOC AssetAI</strong>
+                    <span class="ai-status"><i class="fas fa-circle"></i> Live Data</span>
+                </div>
+            </div>
+            <button class="ai-close-btn" onclick="toggleChat()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="ai-messages" id="aiMessages">
+            <!-- Messages injected here -->
+        </div>
+
+        <!-- Quick Suggestions -->
+        <div class="ai-suggestions" id="aiSuggestions">
+            <button onclick="askAI('Show capacity alerts')">⚠️ Capacity Alerts</button>
+            <button onclick="askAI('Which branch has most stock?')">📍 Branch Summary</button>
+            <button onclick="askAI('Total weight estimate')">⚖️ Weight Report</button>
+            <button onclick="askAI('Give me a full report')">📊 Full Report</button>
+            <button onclick="askAI('Which items need attention?')">🔍 Items to Watch</button>
+            <button onclick="askAI('Show top 5 items by quantity')">🏆 Top Items</button>
+        </div>
+
+        <div class="ai-input-area">
+            <input type="text" id="aiInput" placeholder="Ask about inventory, alerts, branches..." 
+                   onkeydown="if(event.key==='Enter') sendAIMessage()">
+            <button onclick="sendAIMessage()" class="ai-send-btn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+    <!-- ====================================================== -->
+
+    <script src="dashboard.js"></script>
+    <script src="ai_chatbot.js"></script>
+    <script>
+      // ── JWT Session Guard ──────────────────────────────────────
+      (function() {
+        const token = localStorage.getItem('ioc_token');
+        if (!token) { window.location.href = '/login_page/index.html'; return; }
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.exp && Date.now() / 1000 > payload.exp) {
+            localStorage.removeItem('ioc_token');
+            localStorage.removeItem('ioc_user');
+            window.location.href = '/login_page/index.html';
+            return;
+          }
+          const user = payload;
+          // Show username
+          const nameEl = document.getElementById('displayAdminName');
+          if (nameEl) nameEl.textContent = user.full_name || user.employee_id;
+          // Hide admin-only nav for non-admins
+          if (user.role !== 'admin') {
+            const el = document.getElementById('navUsers');
+            if (el) el.style.display = 'none';
+          }
+          if (user.role === 'agent') {
+            ['navCategories','navTransactions'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.style.display = 'none';
+            });
+          }
+        } catch(e) {
+          window.location.href = '/login_page/index.html';
+        }
+      })();
+      function _iocLogout() {
+        localStorage.removeItem('ioc_token');
+        localStorage.removeItem('ioc_user');
+        window.location.href = '/login_page/index.html';
+      }
+    </script>
+</body>
+</html>

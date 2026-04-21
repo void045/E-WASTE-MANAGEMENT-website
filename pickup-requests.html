@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pickup Requests — IOC Scrap Portal</title>
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div style="flex:1; display:flex; flex-direction:column; width:100%">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-title">Pickup Requests</div>
+      <div class="topbar-meta" id="topbar-meta"></div>
+      <button class="btn btn-primary" id="btnNewRequest" style="margin-left:auto">+ New Request</button>
+    </header>
+
+    <main class="main-content">
+      <!-- KPI Row -->
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card yellow"><div class="kpi-label">Pending</div><div class="kpi-value" id="kpiPending">—</div></div>
+        <div class="kpi-card green"><div class="kpi-label">Approved</div><div class="kpi-value" id="kpiApproved">—</div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Completed</div><div class="kpi-value" id="kpiCompleted">—</div></div>
+        <div class="kpi-card red"><div class="kpi-label">Rejected</div><div class="kpi-value" id="kpiRejected">—</div></div>
+      </div>
+
+      <!-- Filter row -->
+      <div class="card" style="margin-bottom:1rem; padding:0.75rem 1rem">
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center">
+          <select class="form-select" id="filterStatus" style="width:auto; flex:1; min-width:140px">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <input class="form-input" id="filterSearch" placeholder="Search by ID or location…" style="flex:2; min-width:160px">
+          <button class="btn btn-secondary" onclick="loadRequests()">🔍 Filter</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">All Requests</span>
+          <span class="text-muted" id="reqCount" style="font-size:0.82rem"></span>
+        </div>
+        <div id="tableWrap">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- New Request Modal -->
+<div class="modal-overlay" id="modalNew">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">🚛 New Pickup Request</h2>
+      <button class="modal-close" onclick="closeModal('modalNew')">✕</button>
+    </div>
+    <form id="newRequestForm">
+      <div class="form-group">
+        <label class="form-label">Scrap Category *</label>
+        <select class="form-select" id="nrCategory" required></select>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label class="form-label">Quantity *</label>
+          <input class="form-input" type="number" id="nrQty" step="0.1" min="0.1" placeholder="e.g. 25.5" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit</label>
+          <input class="form-input" id="nrUnit" readonly style="background:#f9fafb; color:#6b7280">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pickup Location *</label>
+        <input class="form-input" type="text" id="nrLocation" placeholder="e.g. Warehouse B, Gate 3" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Preferred Date *</label>
+        <input class="form-input" type="date" id="nrDate" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="nrNotes" rows="2" placeholder="Any special instructions…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modalNew')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSubmitNew">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Review Modal (Manager/Admin) -->
+<div class="modal-overlay" id="modalReview">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="reviewTitle">Review Request</h2>
+      <button class="modal-close" onclick="closeModal('modalReview')">✕</button>
+    </div>
+    <div id="reviewDetail"></div>
+    <div class="form-group" id="reviewNotesGroup">
+      <label class="form-label">Review Notes</label>
+      <textarea class="form-textarea" id="reviewNotes" rows="2" placeholder="Optional comments…"></textarea>
+    </div>
+    <div class="modal-footer" id="reviewActions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/shared_nav.js"></script>
+<script>
+  if (!Auth.guard()) throw new Error('Not authenticated');
+  const user = Auth.getUser();
+
+  buildSidebar('/pickup-requests.html');
+  initHamburger();
+  document.getElementById('topbar-meta').textContent = `${user.full_name} · ${user.branch}`;
+
+  // Min date = today
+  document.getElementById('nrDate').min = new Date().toISOString().split('T')[0];
+
+  let allRequests = [];
+  let categories  = [];
+
+  async function loadKPIs() {
+    if (user.role === 'agent') return; // agents don't see KPIs
+    const res  = await API.get('/api/transactions/summary/stats');
+    if (!res) return;
+    const data = await res.json();
+    const r    = data.requestStats || {};
+    document.getElementById('kpiPending').textContent   = r.pending   || 0;
+    document.getElementById('kpiApproved').textContent  = r.approved  || 0;
+    document.getElementById('kpiCompleted').textContent = r.completed || 0;
+    document.getElementById('kpiRejected').textContent  = r.rejected  || 0;
+  }
+
+  async function loadCategories() {
+    const res  = await API.get('/api/categories');
+    if (!res) return;
+    const data = await res.json();
+    categories = data.categories || [];
+    const sel  = document.getElementById('nrCategory');
+    sel.innerHTML = '<option value="">Select category…</option>' +
+      categories.map(c => `<option value="${c.id}" data-unit="${c.unit}">${c.name} — ₹${c.price_per_unit}/${c.unit}</option>`).join('');
+    sel.addEventListener('change', () => {
+      const opt = sel.selectedOptions[0];
+      document.getElementById('nrUnit').value = opt?.dataset.unit || '';
+    });
+  }
+
+  async function loadRequests() {
+    document.getElementById('tableWrap').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+    const res  = await API.get('/api/pickup-requests');
+    if (!res) return;
+    const data = await res.json();
+    allRequests = data.requests || [];
+    renderTable();
+  }
+
+  function renderTable() {
+    const status = document.getElementById('filterStatus').value;
+    const search = document.getElementById('filterSearch').value.toLowerCase();
+    let rows = allRequests.filter(r => {
+      if (status && r.status !== status) return false;
+      if (search && !r.request_no.toLowerCase().includes(search) && !r.location?.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    document.getElementById('reqCount').textContent = `${rows.length} request${rows.length !== 1 ? 's' : ''}`;
+
+    if (!rows.length) {
+      document.getElementById('tableWrap').innerHTML = `
+        <div class="empty-state"><div class="icon">📭</div><p>No pickup requests found.</p></div>`;
+      return;
+    }
+
+    const canReview = ['admin','manager'].includes(user.role);
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Request No.</th>
+            <th>Category</th>
+            <th>Qty</th>
+            <th>Branch</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td class="fw-600">${r.request_no}</td>
+                <td>${r.category_name || '—'}</td>
+                <td>${r.quantity} ${r.unit||''}</td>
+                <td>${r.branch}</td>
+                <td>${fmtDate(r.preferred_date)}</td>
+                <td>${statusBadge(r.status)}</td>
+                <td>
+                  ${canReview && r.status === 'pending' ? `
+                    <button class="btn btn-sm btn-success" onclick="openReview(${r.id},'approved')">✓ Approve</button>
+                    <button class="btn btn-sm btn-danger"  onclick="openReview(${r.id},'rejected')" style="margin-left:4px">✗ Reject</button>
+                  ` : ''}
+                  ${r.status === 'pending' && r.requester_id === user.id ? `
+                    <button class="btn btn-sm btn-secondary" onclick="cancelRequest(${r.id})">Cancel</button>
+                  ` : ''}
+                  ${!canReview && r.status !== 'pending' ? '<span class="text-muted" style="font-size:0.8rem">—</span>' : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function openReview(id, defaultStatus) {
+    const r = allRequests.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('reviewTitle').textContent = `Review: ${r.request_no}`;
+    document.getElementById('reviewDetail').innerHTML = `
+      <div class="card" style="margin-bottom:1rem; background:#f8fafc">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; font-size:0.85rem">
+          <div><span class="text-muted">Category:</span> ${r.category_name}</div>
+          <div><span class="text-muted">Quantity:</span> ${r.quantity} ${r.unit}</div>
+          <div><span class="text-muted">Location:</span> ${r.location}</div>
+          <div><span class="text-muted">Branch:</span> ${r.branch}</div>
+          <div><span class="text-muted">Requested:</span> ${fmtDate(r.preferred_date)}</div>
+          <div><span class="text-muted">Status:</span> ${statusBadge(r.status)}</div>
+          ${r.notes ? `<div style="grid-column:1/-1"><span class="text-muted">Notes:</span> ${r.notes}</div>` : ''}
+        </div>
+      </div>`;
+    document.getElementById('reviewActions').innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('modalReview')">Cancel</button>
+      <button class="btn btn-danger btn-sm"   onclick="submitReview(${id},'rejected')">✗ Reject</button>
+      <button class="btn btn-success btn-sm"  onclick="submitReview(${id},'approved')">✓ Approve</button>`;
+    document.getElementById('reviewNotes').value = '';
+    document.getElementById('modalReview').classList.add('show');
+  }
+
+  async function submitReview(id, status) {
+    const notes = document.getElementById('reviewNotes').value;
+    const res   = await API.put(`/api/pickup-requests/${id}/status`, { status, review_notes: notes });
+    if (!res) return;
+    const data  = await res.json();
+    if (data.success) {
+      showToast(`Request ${status}!`, 'success');
+      closeModal('modalReview');
+      loadRequests();
+      loadKPIs();
+    } else {
+      showToast(data.error || 'Failed.', 'error');
+    }
+  }
+
+  async function cancelRequest(id) {
+    if (!confirm('Cancel this request?')) return;
+    const res  = await API.delete(`/api/pickup-requests/${id}`);
+    const data = await res.json();
+    if (data.success) { showToast('Request cancelled.', 'info'); loadRequests(); }
+    else showToast(data.error || 'Failed.', 'error');
+  }
+
+  document.getElementById('btnNewRequest').addEventListener('click', () => {
+    document.getElementById('newRequestForm').reset();
+    document.getElementById('nrUnit').value = '';
+    document.getElementById('modalNew').classList.add('show');
+  });
+
+  document.getElementById('newRequestForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitNew');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    const body = {
+      category_id:    parseInt(document.getElementById('nrCategory').value),
+      quantity:       parseFloat(document.getElementById('nrQty').value),
+      location:       document.getElementById('nrLocation').value,
+      preferred_date: document.getElementById('nrDate').value,
+      notes:          document.getElementById('nrNotes').value
+    };
+    const res  = await API.post('/api/pickup-requests', body);
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Submit Request';
+
+    if (data.success) {
+      showToast(`Request ${data.request.request_no} submitted!`, 'success');
+      closeModal('modalNew');
+      loadRequests();
+    } else {
+      showToast(data.error || 'Submission failed.', 'error');
+    }
+  });
+
+  function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+  document.getElementById('filterStatus').addEventListener('change', renderTable);
+  document.getElementById('filterSearch').addEventListener('input',  renderTable);
+
+  loadKPIs();
+  loadCategories();
+  loadRequests();
+</script>
+</body>
+</html>

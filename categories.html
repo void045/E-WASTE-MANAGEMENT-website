@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Categories — IOC Scrap Portal</title>
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div style="flex:1;display:flex;flex-direction:column;width:100%">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-title">Scrap Categories</div>
+      <div class="topbar-meta" id="topbar-meta"></div>
+      <button class="btn btn-primary" id="btnAddCat" style="margin-left:auto">+ Add Category</button>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Scrap Categories</div>
+          <div class="page-sub">Manage scrap types, pricing, and hazard levels</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">All Categories</span>
+          <input class="form-input" id="searchCat" placeholder="Search…" style="width:200px;">
+        </div>
+        <div id="catTableWrap">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div class="modal-overlay" id="modalCat">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="catModalTitle">Add Category</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="catForm">
+      <input type="hidden" id="catId">
+      <div class="form-group">
+        <label class="form-label">Category Name *</label>
+        <input class="form-input" id="catName" placeholder="e.g. Copper Wire" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="catDesc" rows="2" placeholder="Brief description…"></textarea>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label class="form-label">Unit *</label>
+          <select class="form-select" id="catUnit">
+            <option value="kg">kg</option>
+            <option value="unit">unit</option>
+            <option value="litre">litre</option>
+            <option value="tonne">tonne</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price per Unit (₹) *</label>
+          <input class="form-input" id="catPrice" type="number" step="0.01" min="0" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hazard Level</label>
+        <select class="form-select" id="catHazard">
+          <option value="low">🟢 Low</option>
+          <option value="medium">🟡 Medium</option>
+          <option value="high">🔴 High</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveCat">Save Category</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/shared_nav.js"></script>
+<script>
+  if (!Auth.guard(['admin','manager'])) throw new Error('Access denied');
+  const user = Auth.getUser();
+  buildSidebar('/categories.html');
+  initHamburger();
+  document.getElementById('topbar-meta').textContent = `${user.full_name} · ${user.role}`;
+
+  let allCats = [];
+
+  async function loadCategories() {
+    const res  = await API.get('/api/categories');
+    if (!res) return;
+    const data = await res.json();
+    allCats    = data.categories || [];
+    renderTable();
+  }
+
+  function renderTable() {
+    const q = document.getElementById('searchCat').value.toLowerCase();
+    const cats = allCats.filter(c => !q || c.name.toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q));
+
+    if (!cats.length) {
+      document.getElementById('catTableWrap').innerHTML =
+        `<div class="empty-state"><div class="icon">📂</div><p>No categories found.</p></div>`;
+      return;
+    }
+
+    const isAdmin = user.role === 'admin';
+    document.getElementById('catTableWrap').innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Description</th><th>Unit</th><th>₹/Unit</th><th>Hazard</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${cats.map(c => `
+              <tr>
+                <td class="fw-600">${c.name}</td>
+                <td class="text-muted">${c.description || '—'}</td>
+                <td>${c.unit}</td>
+                <td>₹${Number(c.price_per_unit).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                <td><span class="badge badge-${c.hazard_level}">${c.hazard_level}</span></td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm btn-secondary" onclick="openEdit(${c.id})">✏ Edit</button>
+                  ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteCategory(${c.id})" style="margin-left:4px">🗑</button>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function openAdd() {
+    document.getElementById('catModalTitle').textContent = 'Add Category';
+    document.getElementById('catForm').reset();
+    document.getElementById('catId').value = '';
+    document.getElementById('btnSaveCat').textContent = 'Save Category';
+    document.getElementById('modalCat').classList.add('show');
+  }
+
+  function openEdit(id) {
+    const cat = allCats.find(c => c.id === id);
+    if (!cat) return;
+    document.getElementById('catModalTitle').textContent = 'Edit Category';
+    document.getElementById('catId').value    = cat.id;
+    document.getElementById('catName').value  = cat.name;
+    document.getElementById('catDesc').value  = cat.description || '';
+    document.getElementById('catUnit').value  = cat.unit;
+    document.getElementById('catPrice').value = cat.price_per_unit;
+    document.getElementById('catHazard').value= cat.hazard_level;
+    document.getElementById('btnSaveCat').textContent = 'Update Category';
+    document.getElementById('modalCat').classList.add('show');
+  }
+
+  document.getElementById('btnAddCat').addEventListener('click', openAdd);
+
+  document.getElementById('catForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id  = document.getElementById('catId').value;
+    const btn = document.getElementById('btnSaveCat');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const body = {
+      name:           document.getElementById('catName').value.trim(),
+      description:    document.getElementById('catDesc').value.trim(),
+      unit:           document.getElementById('catUnit').value,
+      price_per_unit: parseFloat(document.getElementById('catPrice').value),
+      hazard_level:   document.getElementById('catHazard').value
+    };
+
+    const res  = id ? await API.put(`/api/categories/${id}`, body)
+                     : await API.post('/api/categories', body);
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = id ? 'Update Category' : 'Save Category';
+
+    if (data.success) {
+      showToast(id ? 'Category updated!' : 'Category added!', 'success');
+      closeModal(); loadCategories();
+    } else {
+      showToast(data.error || 'Failed.', 'error');
+    }
+  });
+
+  async function deleteCategory(id) {
+    if (!confirm('Deactivate this category? It cannot be removed if it has linked requests.')) return;
+    const res  = await API.delete(`/api/categories/${id}`);
+    const data = await res.json();
+    if (data.success) { showToast('Category deactivated.', 'info'); loadCategories(); }
+    else showToast(data.error || 'Failed.', 'error');
+  }
+
+  function closeModal() { document.getElementById('modalCat').classList.remove('show'); }
+  document.getElementById('searchCat').addEventListener('input', renderTable);
+  loadCategories();
+</script>
+</body>
+</html>

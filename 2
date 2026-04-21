@@ -1,0 +1,83 @@
+class RC5:
+    def __init__(self, key: bytes, w=32, r=12):
+        self.w = w  # Word size
+        self.r = r  # Number of rounds
+        self.key = key
+        self.mod = 2**w
+        self.mask = self.mod - 1
+        
+        # Magic constants for 32-bit
+        self.P32 = 0xb7e15163
+        self.Q32 = 0x9e3779b9
+        
+        self._key_expansion()
+
+    def _rotate_left(self, val, n):
+        n %= self.w
+        return ((val << n) & self.mask) | (val >> (self.w - n))
+
+    def _rotate_right(self, val, n):
+        n %= self.w
+        return (val >> n) | ((val << (self.w - n)) & self.mask)
+
+    def _key_expansion(self):
+        # Convert key bytes to words (L array)
+        b = len(self.key)
+        u = self.w // 8
+        c = max(1, (b + u - 1) // u)
+        L = [0] * c
+        for i in range(b - 1, -1, -1):
+            L[i // u] = (L[i // u] << 8) + self.key[i]
+
+        # Initialize S table
+        t = 2 * (self.r + 1)
+        self.S = [0] * t
+        self.S[0] = self.P32
+        for i in range(1, t):
+            self.S[i] = (self.S[i-1] + self.Q32) & self.mask
+
+        # Mix the key into S
+        i = j = A = B = 0
+        for _ in range(3 * max(t, c)):
+            A = self.S[i] = self._rotate_left((self.S[i] + A + B) & self.mask, 3)
+            B = L[j] = self._rotate_left((L[j] + A + B) & self.mask, (A + B))
+            i = (i + 1) % t
+            j = (j + 1) % c
+
+    def encrypt(self, data: bytes):
+        # Unpack two 32-bit words
+        import struct
+        A, B = struct.unpack('<II', data)
+        
+        A = (A + self.S[0]) & self.mask
+        B = (B + self.S[1]) & self.mask
+        
+        for i in range(1, self.r + 1):
+            A = (self._rotate_left(A ^ B, B) + self.S[2 * i]) & self.mask
+            B = (self._rotate_left(B ^ A, A) + self.S[2 * i + 1]) & self.mask
+            
+        return struct.pack('<II', A, B)
+
+    def decrypt(self, data: bytes):
+        import struct
+        A, B = struct.unpack('<II', data)
+        
+        for i in range(self.r, 0, -1):
+            B = self._rotate_right((B - self.S[2 * i + 1]) & self.mask, A) ^ A
+            A = self._rotate_right((A - self.S[2 * i]) & self.mask, B) ^ B
+            
+        B = (B - self.S[1]) & self.mask
+        A = (A - self.S[0]) & self.mask
+        
+        return struct.pack('<II', A, B)
+
+# Example Usage
+key = b'this_is_the_key!' # 16 bytes
+cipher = RC5(key)
+plaintext = b'secret8b'      # 8 bytes (two 32-bit words)
+encrypted = cipher.encrypt(plaintext)
+decrypted = cipher.decrypt(encrypted)
+
+print(f"Original:  {plaintext}")
+print(f"Encrypted: {encrypted.hex()}")
+print(f"Decrypted: {decrypted}")
