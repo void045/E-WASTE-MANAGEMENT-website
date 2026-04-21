@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transactions — IOC Scrap Portal</title>
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div style="flex:1;display:flex;flex-direction:column;width:100%">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-title">Transactions</div>
+      <div class="topbar-meta" id="topbar-meta"></div>
+      <button class="btn btn-primary" id="btnNewTxn" style="margin-left:auto">+ Record Transaction</button>
+    </header>
+
+    <main class="main-content">
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:1.5rem">
+        <div class="kpi-card green">
+          <div class="kpi-label">Total Revenue</div>
+          <div class="kpi-value" id="kpiRevenue">—</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">Total Transactions</div>
+          <div class="kpi-value" id="kpiCount">—</div>
+        </div>
+        <div class="kpi-card yellow">
+          <div class="kpi-label">Total Weight (kg)</div>
+          <div class="kpi-value" id="kpiWeight">—</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">Pending Payments</div>
+          <div class="kpi-value" id="kpiPending">—</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Transaction History</span>
+          <input class="form-input" id="searchTxn" placeholder="Search request no…" style="width:200px">
+        </div>
+        <div id="txnTableWrap">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Record Transaction Modal -->
+<div class="modal-overlay" id="modalTxn">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">💰 Record Transaction</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="txnForm">
+      <div class="form-group">
+        <label class="form-label">Approved Request ID *</label>
+        <input class="form-input" id="txnRequestId" type="number" placeholder="Enter pickup request ID" required>
+        <span class="form-error" id="txnReqErr"></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Actual Weight (kg)</label>
+        <input class="form-input" id="txnWeight" type="number" step="0.01" min="0" placeholder="Leave blank to use requested quantity">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Reference (Cheque/NEFT)</label>
+        <input class="form-input" id="txnRef" placeholder="e.g. NEFT/2026/04234">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveTxn">Record Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/shared_nav.js"></script>
+<script>
+  if (!Auth.guard(['admin','manager'])) throw new Error('Access denied');
+  const user = Auth.getUser();
+  buildSidebar('/transactions.html');
+  initHamburger();
+  document.getElementById('topbar-meta').textContent = `${user.full_name} · ${user.branch}`;
+
+  let allTxns = [];
+
+  async function loadStats() {
+    const res  = await API.get('/api/transactions/summary/stats');
+    if (!res) return;
+    const data = await res.json();
+    const s    = data.stats || {};
+    document.getElementById('kpiRevenue').textContent  = fmtCurrency(s.total_revenue);
+    document.getElementById('kpiCount').textContent    = s.total_transactions || 0;
+    document.getElementById('kpiWeight').textContent   = (s.total_weight || 0).toFixed(1);
+    document.getElementById('kpiPending').textContent  = s.pending_payments || 0;
+  }
+
+  async function loadTransactions() {
+    const res  = await API.get('/api/transactions');
+    if (!res) return;
+    const data = await res.json();
+    allTxns    = data.transactions || [];
+    renderTable();
+  }
+
+  function renderTable() {
+    const q    = document.getElementById('searchTxn').value.toLowerCase();
+    const rows = allTxns.filter(t => !q || t.request_no?.toLowerCase().includes(q));
+
+    if (!rows.length) {
+      document.getElementById('txnTableWrap').innerHTML =
+        `<div class="empty-state"><div class="icon">💸</div><p>No transactions yet.</p></div>`;
+      return;
+    }
+
+    document.getElementById('txnTableWrap').innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>Request No.</th><th>Category</th><th>Branch</th>
+            <th>Weight (kg)</th><th>Amount</th><th>Payment</th><th>Date</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(t => `
+              <tr>
+                <td class="fw-600">#${t.id}</td>
+                <td>${t.request_no}</td>
+                <td>${t.category_name}</td>
+                <td>${t.branch}</td>
+                <td>${(t.weight_actual || 0).toFixed(2)}</td>
+                <td class="fw-600" style="color:#065f46">${fmtCurrency(t.amount)}</td>
+                <td>${statusBadge(t.payment_status)}</td>
+                <td class="text-muted">${fmtDate(t.processed_at)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  document.getElementById('btnNewTxn').addEventListener('click', () => {
+    document.getElementById('txnForm').reset();
+    document.getElementById('txnReqErr').textContent = '';
+    document.getElementById('modalTxn').classList.add('show');
+  });
+
+  document.getElementById('txnForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveTxn');
+    btn.disabled = true; btn.textContent = 'Processing…';
+
+    const body = {
+      request_id:   parseInt(document.getElementById('txnRequestId').value),
+      weight_actual:document.getElementById('txnWeight').value ? parseFloat(document.getElementById('txnWeight').value) : null,
+      payment_ref:  document.getElementById('txnRef').value
+    };
+    const res  = await API.post('/api/transactions', body);
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Record Payment';
+
+    if (data.success) {
+      showToast(`Transaction of ${fmtCurrency(data.transaction.amount)} recorded!`, 'success');
+      closeModal(); loadTransactions(); loadStats();
+    } else {
+      showToast(data.error || 'Failed.', 'error');
+    }
+  });
+
+  function closeModal() { document.getElementById('modalTxn').classList.remove('show'); }
+  document.getElementById('searchTxn').addEventListener('input', renderTable);
+
+  loadStats();
+  loadTransactions();
+</script>
+</body>
+</html>

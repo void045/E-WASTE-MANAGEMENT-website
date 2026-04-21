@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Management — IOC Scrap Portal</title>
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div style="flex:1;display:flex;flex-direction:column;width:100%">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-title">User Management</div>
+      <div class="topbar-meta" id="topbar-meta"></div>
+      <button class="btn btn-primary" id="btnAddUser" style="margin-left:auto">+ Add User</button>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Users</div>
+          <div class="page-sub">Manage employee accounts, roles, and branch access</div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:1.5rem">
+        <div class="kpi-card red">
+          <div class="kpi-label">Total Users</div>
+          <div class="kpi-value" id="kpiTotal">—</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">Admins</div>
+          <div class="kpi-value" id="kpiAdmins">—</div>
+        </div>
+        <div class="kpi-card yellow">
+          <div class="kpi-label">Managers</div>
+          <div class="kpi-value" id="kpiManagers">—</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Agents</div>
+          <div class="kpi-value" id="kpiAgents">—</div>
+        </div>
+      </div>
+
+      <!-- Filter + Table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">All Users</span>
+          <div style="display:flex; gap:0.5rem">
+            <select class="form-select" id="filterRole" style="width:auto">
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="agent">Agent</option>
+            </select>
+            <input class="form-input" id="searchUser" placeholder="Search name / ID…" style="width:180px">
+          </div>
+        </div>
+        <div id="userTableWrap">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Add / Edit User Modal -->
+<div class="modal-overlay" id="modalUser">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="userModalTitle">Add User</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="userForm">
+      <input type="hidden" id="userId">
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label class="form-label">Employee ID *</label>
+          <input class="form-input" id="uEmpId" placeholder="e.g. IOC-EMP-042" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input class="form-input" id="uName" placeholder="Full name" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email *</label>
+        <input class="form-input" id="uEmail" type="email" placeholder="email@iocl.com" required>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label class="form-label">Role *</label>
+          <select class="form-select" id="uRole">
+            <option value="agent">Agent</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Branch *</label>
+          <select class="form-select" id="uBranch">
+            <option>Delhi HQ</option>
+            <option>Mumbai Refineries</option>
+            <option>Kolkata Office</option>
+            <option>Digboi Refinery</option>
+            <option>Chennai Marketing</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="pwdGroup">
+        <label class="form-label">Initial Password *</label>
+        <input class="form-input" id="uPwd" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+        <span class="form-error" id="pwdErr"></span>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveUser">Save User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/shared_nav.js"></script>
+<script>
+  if (!Auth.guard(['admin'])) throw new Error('Access denied');
+  const user = Auth.getUser();
+  buildSidebar('/users.html');
+  initHamburger();
+  document.getElementById('topbar-meta').textContent = `${user.full_name} · Admin`;
+
+  let allUsers = [];
+
+  async function loadUsers() {
+    const res  = await API.get('/api/users');
+    if (!res) return;
+    const data = await res.json();
+    allUsers   = data.users || [];
+
+    // KPIs
+    document.getElementById('kpiTotal').textContent    = allUsers.filter(u => u.active).length;
+    document.getElementById('kpiAdmins').textContent   = allUsers.filter(u => u.role === 'admin').length;
+    document.getElementById('kpiManagers').textContent = allUsers.filter(u => u.role === 'manager').length;
+    document.getElementById('kpiAgents').textContent   = allUsers.filter(u => u.role === 'agent').length;
+
+    renderTable();
+  }
+
+  function renderTable() {
+    const role = document.getElementById('filterRole').value;
+    const q    = document.getElementById('searchUser').value.toLowerCase();
+    const rows = allUsers.filter(u => {
+      if (role && u.role !== role) return false;
+      if (q && !u.full_name.toLowerCase().includes(q) && !u.employee_id.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    if (!rows.length) {
+      document.getElementById('userTableWrap').innerHTML =
+        `<div class="empty-state"><div class="icon">👥</div><p>No users found.</p></div>`;
+      return;
+    }
+
+    document.getElementById('userTableWrap').innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Employee ID</th><th>Name</th><th>Email</th><th>Role</th>
+            <th>Branch</th><th>Status</th><th>Last Login</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(u => `
+              <tr>
+                <td class="fw-600">${u.employee_id}</td>
+                <td>${u.full_name}</td>
+                <td class="text-muted">${u.email}</td>
+                <td><span class="badge badge-${u.role}">${u.role}</span></td>
+                <td>${u.branch}</td>
+                <td><span class="badge ${u.active ? 'badge-approved' : 'badge-cancelled'}">${u.active ? 'Active' : 'Inactive'}</span></td>
+                <td class="text-muted">${fmtDate(u.last_login)}</td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm btn-secondary" onclick="openEdit(${u.id})">✏ Edit</button>
+                  ${u.id !== user.id ? `
+                    <button class="btn btn-sm ${u.active ? 'btn-danger' : 'btn-success'}"
+                      onclick="toggleUser(${u.id}, ${u.active})"
+                      style="margin-left:4px">
+                      ${u.active ? '🔴 Deactivate' : '🟢 Activate'}
+                    </button>
+                  ` : '<span class="text-muted" style="font-size:0.75rem;margin-left:8px">(you)</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function openAdd() {
+    document.getElementById('userModalTitle').textContent = 'Add User';
+    document.getElementById('userForm').reset();
+    document.getElementById('userId').value = '';
+    document.getElementById('pwdGroup').style.display = 'block';
+    document.getElementById('uPwd').required = true;
+    document.getElementById('pwdErr').textContent = '';
+    document.getElementById('btnSaveUser').textContent = 'Save User';
+    document.getElementById('modalUser').classList.add('show');
+  }
+
+  function openEdit(id) {
+    const u = allUsers.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('userModalTitle').textContent = `Edit: ${u.full_name}`;
+    document.getElementById('userId').value  = u.id;
+    document.getElementById('uEmpId').value  = u.employee_id;
+    document.getElementById('uName').value   = u.full_name;
+    document.getElementById('uEmail').value  = u.email;
+    document.getElementById('uRole').value   = u.role;
+    document.getElementById('uBranch').value = u.branch;
+    document.getElementById('pwdGroup').style.display = 'none';
+    document.getElementById('uPwd').required = false;
+    document.getElementById('btnSaveUser').textContent = 'Update User';
+    document.getElementById('modalUser').classList.add('show');
+  }
+
+  document.getElementById('btnAddUser').addEventListener('click', openAdd);
+
+  document.getElementById('userForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id  = document.getElementById('userId').value;
+    const pwd = document.getElementById('uPwd').value;
+    const btn = document.getElementById('btnSaveUser');
+
+    if (!id && pwd.length < 8) {
+      document.getElementById('pwdErr').textContent = 'Password must be at least 8 characters.';
+      return;
+    }
+    document.getElementById('pwdErr').textContent = '';
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const body = {
+      employee_id: document.getElementById('uEmpId').value.trim(),
+      full_name:   document.getElementById('uName').value.trim(),
+      email:       document.getElementById('uEmail').value.trim(),
+      role_name:   document.getElementById('uRole').value,
+      branch:      document.getElementById('uBranch').value,
+      ...((!id && pwd) ? { password: pwd } : {})
+    };
+
+    const res  = id ? await API.put(`/api/users/${id}`, { ...body, role_name: body.role_name })
+                     : await API.post('/api/users', body);
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = id ? 'Update User' : 'Save User';
+
+    if (data.success) {
+      showToast(id ? 'User updated!' : 'User created!', 'success');
+      closeModal(); loadUsers();
+    } else {
+      showToast(data.error || 'Failed.', 'error');
+    }
+  });
+
+  async function toggleUser(id, currentlyActive) {
+    const action = currentlyActive ? 'deactivate' : 'reactivate';
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+    const res  = currentlyActive
+      ? await API.delete(`/api/users/${id}`)
+      : await API.put(`/api/users/${id}`, { active: true });
+    const data = await res.json();
+    if (data.success) { showToast(`User ${action}d.`, 'info'); loadUsers(); }
+    else showToast(data.error || 'Failed.', 'error');
+  }
+
+  function closeModal() { document.getElementById('modalUser').classList.remove('show'); }
+  document.getElementById('filterRole').addEventListener('change', renderTable);
+  document.getElementById('searchUser').addEventListener('input',  renderTable);
+
+  loadUsers();
+</script>
+</body>
+</html>

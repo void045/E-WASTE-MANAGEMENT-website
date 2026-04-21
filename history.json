@@ -1,0 +1,214 @@
+{
+  "logs": [
+    {
+      "id": "LOG-1776781236157",
+      "timestamp": "2026-04-21T14:20:36.157Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 4,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781235806",
+      "timestamp": "2026-04-21T14:20:35.806Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 5,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781235472",
+      "timestamp": "2026-04-21T14:20:35.472Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 6,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781235140",
+      "timestamp": "2026-04-21T14:20:35.140Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 7,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781234807",
+      "timestamp": "2026-04-21T14:20:34.807Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 8,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781234457",
+      "timestamp": "2026-04-21T14:20:34.457Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 9,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781234123",
+      "timestamp": "2026-04-21T14:20:34.123Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 10,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781233808",
+      "timestamp": "2026-04-21T14:20:33.808Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 11,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781233473",
+      "timestamp": "2026-04-21T14:20:33.473Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 12,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781233141",
+      "timestamp": "2026-04-21T14:20:33.141Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 13,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781232824",
+      "timestamp": "2026-04-21T14:20:32.824Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 14,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781232524",
+      "timestamp": "2026-04-21T14:20:32.524Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 15,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781232023",
+      "timestamp": "2026-04-21T14:20:32.023Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 16,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776781231778",
+      "timestamp": "2026-04-21T14:20:31.778Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Decrement",
+      "change": -1,
+      "newValue": 17,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776637865521",
+      "timestamp": "2026-04-19T22:31:05.521Z",
+      "itemId": "ELW-027",
+      "itemName": "WD My Cloud NAS",
+      "action": "Increment",
+      "change": 1,
+      "newValue": 7,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776633183230",
+      "timestamp": "2026-04-19T21:13:03.230Z",
+      "itemId": "ELW-TEST-1",
+      "itemName": "Test Asset",
+      "action": "Added Asset",
+      "change": 5,
+      "newValue": 5,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776631852998",
+      "timestamp": "2026-04-19T20:50:52.998Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Increment",
+      "change": 1,
+      "newValue": 18,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776631764393",
+      "timestamp": "2026-04-19T20:49:24.393Z",
+      "itemId": "ELW-002",
+      "itemName": "Business Tower PC",
+      "action": "Increment",
+      "change": 1,
+      "newValue": 9,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776631762712",
+      "timestamp": "2026-04-19T20:49:22.712Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Increment",
+      "change": 1,
+      "newValue": 17,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-1776631761727",
+      "timestamp": "2026-04-19T20:49:21.727Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "Increment",
+      "change": 1,
+      "newValue": 16,
+      "user": "Admin User"
+    },
+    {
+      "id": "LOG-001",
+      "timestamp": "2026-04-20T01:50:00Z",
+      "itemId": "ELW-001",
+      "itemName": "High Performance Laptop",
+      "action": "inventory_init",
+      "change": 0,
+      "newValue": 15,
+      "user": "System Admin"
+    }
+  ]
+}
